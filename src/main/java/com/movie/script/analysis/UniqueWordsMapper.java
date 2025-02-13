@@ -8,44 +8,33 @@ import java.util.HashSet;
 import java.util.StringTokenizer;
 
 public class UniqueWordsMapper extends Mapper<Object, Text, Text, Text> {
-
     private Text character = new Text();
-    private Text uniqueWords = new Text();
+    private Text word = new Text();
+    
+    public enum Counter {
+        TOTAL_UNIQUE_WORDS_IDENTIFIED,
+        NUMBER_OF_CHARACTERS_SPEAKING
+    }
+
+    private HashSet<String> uniqueWords = new HashSet<>();
 
     @Override
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-        // Get the line from input text
-        String line = value.toString().trim();
-
-        // Skip empty lines
-        if (line.isEmpty()) {
-            return;
-        }
-
-        // Split the line into character's name and dialogue (after the ':')
+        String line = value.toString();
         String[] parts = line.split(":", 2);
-        if (parts.length == 2) {
-            String characterName = parts[0].trim();  // Extract character's name
-            String dialogue = parts[1].trim();       // Extract the dialogue
+        if (parts.length < 2) return;
 
-            // Create a HashSet to store unique words
-            HashSet<String> uniqueWordSet = new HashSet<>();
+        character.set(parts[0].trim());
+        context.getCounter(Counter.NUMBER_OF_CHARACTERS_SPEAKING).increment(1);
 
-            // Tokenize the dialogue to extract words
-            StringTokenizer tokenizer = new StringTokenizer(dialogue, " ,.!?;:\"()[]{}-");
-            while (tokenizer.hasMoreTokens()) {
-                String word = tokenizer.nextToken().toLowerCase();  // Convert to lowercase
-                uniqueWordSet.add(word);  // Add word to the set
+        StringTokenizer tokenizer = new StringTokenizer(parts[1].trim());
+        while (tokenizer.hasMoreTokens()) {
+            String cleanedWord = tokenizer.nextToken().toLowerCase().replaceAll("[^a-zA-Z]", "");
+            if (!cleanedWord.isEmpty() && uniqueWords.add(cleanedWord)) {
+                word.set(cleanedWord);
+                context.write(character, word);
+                context.getCounter(Counter.TOTAL_UNIQUE_WORDS_IDENTIFIED).increment(1);
             }
-
-            // Set the character's name as the key
-            character.set(characterName);
-
-            // Join all unique words into a single string
-            uniqueWords.set(String.join(" ", uniqueWordSet));
-
-            // Emit the character's name and their unique words
-            context.write(character, uniqueWords);
         }
     }
 }

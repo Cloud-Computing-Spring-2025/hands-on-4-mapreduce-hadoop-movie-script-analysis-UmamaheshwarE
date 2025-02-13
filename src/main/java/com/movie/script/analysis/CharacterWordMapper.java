@@ -11,35 +11,32 @@ public class CharacterWordMapper extends Mapper<Object, Text, Text, IntWritable>
 
     private final static IntWritable one = new IntWritable(1);
     private Text word = new Text();
-    private Text character = new Text();
+
+    public enum Counter {
+        TOTAL_LINES_PROCESSED,
+        TOTAL_WORDS_PROCESSED,
+        TOTAL_CHARACTERS_PROCESSED
+    }
 
     @Override
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-        // Get the line as a string
-        String line = value.toString().trim();
+        String line = value.toString();
+        context.getCounter(Counter.TOTAL_LINES_PROCESSED).increment(1);
 
-        // Skip empty lines
-        if (line.isEmpty()) {
-            return;
-        }
-
-        // Split the line into the character's name and the dialogue (after the ':')
         String[] parts = line.split(":", 2);
-        if (parts.length == 2) {
-            String characterName = parts[0].trim();
-            String dialogue = parts[1].trim();
+        if (parts.length < 2) return;
 
-            // Set the character's name as the key
-            character.set(characterName);
+        String character = parts[0].trim();
+        String dialogue = parts[1].trim();
+        
+        context.getCounter(Counter.TOTAL_CHARACTERS_PROCESSED).increment(dialogue.length());
 
-            // Tokenize the dialogue to extract words
-            StringTokenizer tokenizer = new StringTokenizer(dialogue, " ,.!?;:\"()[]{}-");
-            while (tokenizer.hasMoreTokens()) {
-                String token = tokenizer.nextToken().toLowerCase(); // Convert to lowercase to handle case insensitivity
-                word.set(token);
-
-                // Emit each word with the character's name as key, and 1 as value to count the word occurrences
-                context.write(character, one);
+        StringTokenizer tokenizer = new StringTokenizer(dialogue);
+        while (tokenizer.hasMoreTokens()) {
+            word.set(tokenizer.nextToken().toLowerCase().replaceAll("[^a-zA-Z]", ""));
+            if (!word.toString().isEmpty()) {
+                context.write(word, one);
+                context.getCounter(Counter.TOTAL_WORDS_PROCESSED).increment(1);
             }
         }
     }
